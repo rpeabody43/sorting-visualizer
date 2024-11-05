@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 
 #include "algorithms.h"
 #include "display.h"
@@ -17,6 +18,8 @@ static struct {
     SDL_Window* sdl_window;
     SDL_Renderer* sdl_renderer;
     SDL_Texture* sdl_texture;
+
+    SDL_Color* colors;
 
     uint32_t* pixel_buffer;
     int* last_rendered;
@@ -31,6 +34,61 @@ static struct {
     float size_ratio;
 } display;
 
+/*
+    x = c * (1 - abs((h / 60) % 2 - 1))
+    
+    if h < 60:
+        r, g, b = c, x, 0
+    elif h < 120:
+        r, g, b = x, c, 0
+    elif h < 180:
+        r, g, b = 0, c, x
+    elif h < 240:
+        r, g, b = 0, x, c
+    elif h < 300:
+        r, g, b = x, 0, c
+    else:
+        r, g, b = c, 0, x
+
+    # Convert to RGB 0-255 range
+    r, g, b = [int(color * 255) for color in (r, g, b)]
+*/
+void colors_init() {
+    SDL_Color* colors = malloc(n * sizeof(SDL_Color));
+    float inc = 360.0 / n;
+    float h = 0;
+    int x;
+    for (int i = 0; i < n; i++, h += inc) {
+        colors[i].r = 0;
+        colors[i].g = 0;
+        colors[i].b = 0;
+
+        x = 255 * (1 - fabs(fmod(h / 60, 2) - 1));
+
+        if (h < 60) {
+            colors[i].r = 255;
+            colors[i].g = x;
+        } else if (h < 120) {
+            colors[i].r = x;
+            colors[i].g = 255;
+        } else if (h < 180) {
+            colors[i].g = 255;
+            colors[i].b = x;
+        } else if (h < 240) {
+            colors[i].g = x;
+            colors[i].b = 255;
+        } else if (h < 300) {
+            colors[i].r = x;
+            colors[i].b = 255;
+        } else {
+            colors[i].r = 255;
+            colors[i].b = x;
+        }
+    }
+
+    display.colors = colors;
+}
+
 void display_init(int w, float ratio, int delay) {
     display.window_w = w;
     display.window_h = WINDOW_H;
@@ -43,7 +101,7 @@ void display_init(int w, float ratio, int delay) {
     );
     display.sdl_texture = SDL_CreateTexture(
         display.sdl_renderer, SDL_PIXELFORMAT_RGBA8888, 
-        SDL_TEXTUREACCESS_STREAMING, display.window_w, display.window_h
+        SDL_TEXTUREACCESS_TARGET, display.window_w, display.window_h
     );
 
     display.pixel_buffer = malloc(
@@ -57,12 +115,15 @@ void display_init(int w, float ratio, int delay) {
     display.last_h1 = -1;
     display.last_h2 = -1;
     display.delay = delay;
+
+    colors_init();
 }
 
 void quit() {
     free(arr);
     free(display.last_rendered);
     free(display.pixel_buffer);
+    free(display.colors);
     SDL_DestroyTexture(display.sdl_texture);
     SDL_DestroyRenderer(display.sdl_renderer);
     SDL_DestroyWindow(display.sdl_window);
@@ -73,67 +134,60 @@ void quit() {
 
 // Make draw take in indices to highlight different ways
 void draw (int highlight1, int highlight2) {
-    const uint32_t standard_bar = 0xFFFFFFFF;
-    const uint32_t color1 = 0x00FF00FF;
-    const uint32_t color2 = 0x0000FFFF;
-    const uint32_t background_color = 0x181818FF;
-    uint32_t bar_color;
-
-    int start_x, current_pos, height;
-    uint32_t draw_color;
-
     int update_l = 0;
     int update_r = 0;
 
-    start_x = display.window_w - display.bar_width;
-    for (int i = n-1; i >= 0; i--, start_x -= display.bar_width) {
+    SDL_Rect rect;
+    rect.x = display.window_w-display.bar_width;
+    rect.w = display.bar_width;
+
+    SDL_Color bar_color;
+
+    SDL_SetRenderTarget(display.sdl_renderer, display.sdl_texture);
+    for (int i = n-1; i >= 0; i--, rect.x -= display.bar_width) {
         if (
             arr[i] == display.last_rendered[i] 
             && i != display.last_h1 
             && i != display.last_h2
+            && highlight1 > -1 
+            && highlight2 > -1
+            && i != highlight1 
+            && i != highlight2
         ) {
             continue;
         }
         if (i == highlight1) {
-            bar_color = color1;
+            SDL_SetRenderDrawColor(display.sdl_renderer, 255, 255, 255, 255);
         } else if (i == highlight2) {
-            bar_color = color2;
+            SDL_SetRenderDrawColor(display.sdl_renderer, 128, 128, 128, 255);
         } else {
-            bar_color = standard_bar;
+            bar_color = display.colors[arr[i]];
+            SDL_SetRenderDrawColor(
+                display.sdl_renderer, bar_color.r, bar_color.g, bar_color.b, 255
+            );
         }
-        height = arr[i] * display.size_ratio;
+        // Draw actual bar
+        rect.h = arr[i] * display.size_ratio;
+        rect.y = display.window_h - rect.h;
+        SDL_RenderFillRect(display.sdl_renderer, &rect);
 
-        // I think using a surface would make this faster since they're
-        // more built for per-pixel software rendering
-        int x, y;
-        for (x = start_x; x < start_x + display.bar_width; x++) {
-            draw_color = background_color;
-            current_pos = x;
-            for (y = 0; y < display.window_h; y++) {
-                display.pixel_buffer[current_pos] = draw_color;
-                current_pos += display.window_w;
-                if (y >= display.window_h - height) {
-                    draw_color = bar_color;
-                }
-            }
+        // Clear out top part
+        rect.h = rect.y;
+        rect.y = 0;
+        SDL_SetRenderDrawColor(display.sdl_renderer, 18, 18, 18, 255);
+        SDL_RenderFillRect(display.sdl_renderer, &rect);
+        if (rect.x + rect.w > update_r) {
+            update_r = rect.x + rect.w;
         }
-        if (x > update_r) {
-            update_r = x;
-        }
-        update_l = start_x;
+        update_l = rect.x;
     }
-    // if this was never reassigned then nothing new needs to be rendered
-    if (!update_r) { return; }
     SDL_Rect update_rect = {
         .x = update_l,
         .w = update_r - update_l,
         .y = 0,
         .h = display.window_h
     };
-    SDL_UpdateTexture(
-        display.sdl_texture, NULL, 
-        display.pixel_buffer, display.window_w * sizeof(uint32_t)
-    );
+    SDL_SetRenderTarget(display.sdl_renderer, NULL);
     SDL_RenderCopy(
         display.sdl_renderer, display.sdl_texture, &update_rect, &update_rect
     );
@@ -143,7 +197,7 @@ void draw (int highlight1, int highlight2) {
     display.last_h2 = highlight2;
 }
 
-void disp (int h1, int h2) {
+void disp (int h1, int h2, bool override_delay) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_QUIT) {
@@ -151,7 +205,7 @@ void disp (int h1, int h2) {
         }
     }
     draw(h1, h2);
-    if (display.delay) {
+    if (display.delay && !override_delay) {
         SDL_Delay(display.delay);
     }
 }
@@ -173,7 +227,7 @@ void(*init_with_args(int argc, char** argv))() {
     } else {
         len = 100;
     }
-    array_init(len, len);
+    array_init(len);
 
     int delay = 0;
     if (argc > 3) {
@@ -190,6 +244,9 @@ void(*init_with_args(int argc, char** argv))() {
             "bubble\n"
             "insertion\n"
             "selection\n"
+            "merge\n"
+            "quick\n"
+            "quicklr\n"
         );
     } else if (strcmp(argv[1], "bubble") == 0) {
         return bubble_sort;
@@ -199,6 +256,10 @@ void(*init_with_args(int argc, char** argv))() {
         return selection_sort;
     } else if (strcmp(argv[1], "merge") == 0) {
         return merge_sort;
+    } else if (strcmp(argv[1], "quick") == 0) {
+        return quick_sort;
+    } else if (strcmp(argv[1], "quicklr") == 0) {
+        return quick_sort_lr;
     } else {
         printf("Invalid sorting algorithm\n");
         exit(1);
@@ -230,7 +291,7 @@ int main(int argc, char** argv) {
     printf("%fs elapsed\n", time_spent);
 
     while (true) {
-        disp(-1, -1);
+        disp(-1, -1, false);
     }
     
     quit();

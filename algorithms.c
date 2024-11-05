@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "algorithms.h"
 #include "display.h"
@@ -24,19 +25,13 @@ void print_arr () {
     printf("]\n");
 }
 
-void array_init(int len, int max) {
+void array_init(int len) {
     arr = malloc(len * sizeof(int));
-    fill(len, max);
-    n = len;
-    max_value = max;
-}
-
-void fill (int len, int max) {
-    float increment = (float) max / len;
-    int val = 0;
     for (int i = len-1; i >= 0; i--) {
-        arr[i] = val += increment;
+        arr[i] = i;
     }
+    n = len;
+    max_value = len-1;
 }
 
 void swap (int i, int j) {
@@ -55,7 +50,7 @@ void shuffle () {
     for (int i = 0; i < n-1; i++) {
         size_t j = (unsigned int) (drand48()*(i+1));
         swap(i, j);
-        disp(i, j);
+        disp(i, j, true);
     }
 }
 // ----------------------------------- UTIL -----------------------------------
@@ -67,8 +62,8 @@ void bubble_sort () {
             if (arr[j] > arr[j+1]) {
                 swap(j, j+1);
             }
+            disp(j, -1, false);
         }
-        disp(j, -1);
     }
 }
 
@@ -80,9 +75,9 @@ void selection_sort () {
             if (arr[j] < arr[minindex]) {
                 minindex = j;
             }
+            disp(i, minindex, false);
         }
         swap(i, minindex);
-        disp(i, minindex);
     }
 }
 
@@ -92,9 +87,9 @@ void insertion_sort () {
         key = arr[i];
         for (j = i-1; j >= 0 && key < arr[j]; j--) {
             arr[j+1] = arr[j];
+            disp(j+1, -1, false);
         }
         arr[j+1] = key;
-        disp(j+1, -1);
     }
 }
 
@@ -114,19 +109,22 @@ void merge (int s1, int e1, int s2, int e2) {
         } else {
             temp[new_idx++] = arr[r_idx++];
         }
+        disp(-1, new_idx, false);
     }
 
     while (l_idx <= e1) {
         temp[new_idx++] = arr[l_idx++];
+        disp(-1, new_idx, false);
     }
     while (r_idx <= e2) {
         temp[new_idx++] = arr[r_idx++];
+        disp(-1, new_idx, false);
     }
 
     // Copy back to original
     for (i = s1; i <= e2; i++) {
         arr[i] = temp[i];
-        disp(i, -1);
+        disp(i, -1, false);
     }
 
     free(temp);
@@ -143,4 +141,56 @@ void ms_recurse (int start, int end) {
 
 void merge_sort () {
     ms_recurse(0, n-1);
+}
+
+typedef int(*partition_t)(int, int);
+
+int lomuto_partition (int l, int r) {
+    int pivot, i, t;
+    pivot = arr[r];
+    t = l;
+    for (i = l; i < r; i++) {
+        if (arr[i] <= pivot) {
+            swap(t++, i);
+        }
+        disp(i, t, false);
+    }
+    swap(t, r);
+    return t;
+}
+
+int hoare_partition (int l, int r) {
+    int pivot = arr[(l + r) / 2];
+    swap(l, r);
+    while (l < r) {
+        swap(l, r);
+        while (arr[l] < pivot) {
+            l++;
+        }
+        while (arr[r] > pivot) {
+            r--;
+        }
+        disp(l, r, false);
+    }
+    return r;
+}
+
+void qs_recurse (int l, int r, partition_t partition, bool right_inclusive) {
+    if (l < r) {
+        int pivot_idx = partition(l, r);
+        if (right_inclusive) {
+            qs_recurse(l, pivot_idx, partition, right_inclusive);
+        } else {
+            qs_recurse(l, pivot_idx-1, partition, right_inclusive);
+        }
+        qs_recurse(pivot_idx+1, r, partition, right_inclusive);
+    }
+}
+
+void quick_sort () {
+    qs_recurse(0, n-1, lomuto_partition, false);
+}
+
+void quick_sort_lr () {
+    qs_recurse(0, n-1, hoare_partition, true);
 }
