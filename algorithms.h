@@ -7,7 +7,7 @@ extern int max_value;
 // Util
 void array_init(int len);
 void shuffle();
-void print_arr();
+void print_arr(int* a, int len);
 
 // Sorting algorithms
 void bubble_sort();

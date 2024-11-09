@@ -228,6 +228,10 @@ void(*init_with_args(int argc, char** argv))() {
             "merge\n"
             "quick\n"
             "quicklr\n"
+            "heap\n"
+            "counting\n"
+            "radix\n"
+            "bogo\n"
         );
     } else if (strcmp(argv[1], "bubble") == 0) {
         return bubble_sort;
@@ -241,6 +245,16 @@ void(*init_with_args(int argc, char** argv))() {
         return quick_sort;
     } else if (strcmp(argv[1], "quicklr") == 0) {
         return quick_sort_lr;
+    } else if (strcmp(argv[1], "heap") == 0) {
+        return heap_sort;
+    } else if (strcmp(argv[1], "counting") == 0) {
+        return counting_sort;
+    } else if (strcmp(argv[1], "radix") == 0) {
+        return radix_sort;
+    } else if (strcmp(argv[1], "bogo") == 0) {
+        printf("WARNING: THIS SORTING ALGORITHM IS A JOKE\n");
+        printf("DON'T RUN IT ABOVE LENGTH 6 OR SO\n");
+        return bogo_sort;
     } else {
         printf("Invalid sorting algorithm\n");
         exit(1);
