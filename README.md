@@ -2,6 +2,11 @@
 A simple sorting algorithm visualizer featuring pretty colors. Written using 
 C and [SDL2](https://www.libsdl.org/)
 
+Disclaimer: Although many of these algorithms perform similarly to each other in 
+the real world, they vary wildly in runtime here due to how they are drawn to the
+screen. This project is meant to demonstrate how sorting algorithms look, not how
+fast they run.  
+
 ## Build instructions
 I used Ubuntu 22.04 via WSL for this project but things shouldn't be that 
 different across distros.
