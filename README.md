@@ -34,3 +34,5 @@ The available algorithms are:
 - `bogo` - Bogosort
 
 # Example
+https://github.com/user-attachments/assets/01ea9292-b1ef-4bb3-a22e-6a91a9a68f8c
+
